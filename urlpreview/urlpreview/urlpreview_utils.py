@@ -5,7 +5,10 @@ import urllib.parse
 from urllib.parse import urlparse
 
 IMAGE_TYPES = ["image/gif", "image/jpg", "image/jpeg", "image/png", "image/webp"]
+IMAGE_STYLE_TAG_VALUE = 'max-height: 60px;'
 
+TITLE_STYLE_TAG_VALUE = "font-size: medium; padding-bottom: 8px; line-height:1.1; margin-bottom: 5px;"
+DESCRIPTION_STYLE_TAG_VALUE = "font-size: small; font-style: oblique; line-height: 1; padding-bottom: 5px; margin-bottom: 5px; padding-top:1px; margin-top:2px;"
 def check_all_none_except(data, keys_to_except):
     for key, value in data.items():
         if key not in keys_to_except and value is not None:
@@ -31,23 +34,26 @@ def check_line_breaks(text: str):
         return None
     return text.replace('\n', '<br />')
 
-def format_title(title, url_str: str=""):
+def format_title(title, url_str: str="", custom_styles: str="",use_divtag_instead_of_htag: bool=False):
     if not title:
         return None
+    tag = 'div' if use_divtag_instead_of_htag else 'h3'
     if url_str:
-        return f'<h3><a href="{url_str}">{str(title)}</a></h3>'
+        return f'<{tag} style="{custom_styles}"><a href="{url_str}">{str(title)}</a></{tag}>'
     else:
-        return f'<h3>{str(title)}</h3>'
+        return f'<{tag} style="{custom_styles}" >{str(title)}</{tag}>'
 
-def format_description(description, preserve_line_breaks: bool=False):
+def format_description(description, preserve_line_breaks: bool=False, custom_styles: str="", indent_description: bool=False, use_divtag_instead_of_ptag: bool=False):
     if not description:
         return None
+    prefix = '&#8250;&nbsp;&nbsp;&nbsp;&nbsp;' if indent_description else ''
+    tag = 'div' if use_divtag_instead_of_ptag else 'p'
     if preserve_line_breaks is False:
-        return f'<p>'+str(description).replace('\r', ' ').replace('\n', ' ')+'</p>'
+        return f'<{tag} style="{custom_styles}">{prefix}'+str(description).replace('\r', ' ').replace('\n', ' ')+f'</{tag}>'
     else:
-        return f'<p>'+str(description)+'</p>'
+        return f'<{tag} style="{custom_styles}">{prefix}'+str(description)+f'</{tag}>'
 
-def format_image(image_mxc, url_str: str='', content_type: str=None, max_image_embed: int=300):
+def format_image(image_mxc, url_str: str='', content_type: str=None, max_image_embed: int=300, custom_styles: str=""):
     if not image_mxc:
         return None
     if not content_type:
@@ -56,9 +62,9 @@ def format_image(image_mxc, url_str: str='', content_type: str=None, max_image_e
     if max_image_embed > 0:
         width = f'width="{str(max_image_embed)}" '
     if url_str:
-        return f'<a href="{url_str}"><img src="{image_mxc}" alt="{content_type}" {width}/></a>'
+        return f'<a href="{url_str}"><img style="{custom_styles}" src="{image_mxc}" alt="{content_type}" {width}/></a>'
     else:
-        return f'<img src="{image_mxc}" alt="{content_type}" {width}/>'
+        return f'<img style="{custom_styles}" src="{image_mxc}" alt="{content_type}" {width}/>'
 
 def format_image_width(image_width, max_image_embed: int=300):
     if image_width is None:
