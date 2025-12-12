@@ -69,6 +69,7 @@ class UrlPreviewBot(Plugin):
         self.USE_DIVTAG_INSTEAD_OF_HTAG_FOR_TITLE = self.config["use_divtag_instead_of_htag_for_title"]
         self.USE_DIVTAG_INSTEAD_OF_PTAG_FOR_DESCRIPTION = self.config["use_divtag_instead_of_ptag_for_description"]
         self.INDENT_DESCRIPTION = self.config['indent_description']
+        self.YT_DLP_STORAGE_PATH = self.config['yt_dlp_storage_path']
         await evt.mark_read()
 
         embeds = []
@@ -153,21 +154,38 @@ async def embed_url_preview(self, url_str, og, html_custom_headers=None, max_ima
         return None
     if all(v is None for v in og):
         return None
-    # Fetch image_mxc
-    image_mxc = og.get('image_mxc', None)
-    if image_mxc is None:
-        image_mxc = await process_image(self, image=og.get('image', None), html_custom_headers=html_custom_headers, content_type=og.get('content_type', None))
-    # Check if only contains image
-    if check_all_none_except(og, ['image', 'image_mxc', 'content_type', 'image_width']):
-        image_solo = format_image(image_mxc, url_str, og.get('content_type', None), max_image_embed=0) # Full size image
-        if image_solo is not None:
-            return f"<blockquote>{image_solo}</blockquote>"
-        return None # Everything is empty
-    # Default message
+    image_mxc = None
+    video_mxc = None
+    #if it's a youtube link youtube should be in the first 20 chars; i'm too lazy to make a regex right now
+    YOUTUBE_DL = False
+    if "youtube.com" in url_str[:20]:
+        YOUTUBE_DL = True
+    if YOUTUBE_DL:
+        video_mxc = og.get('video_mxc')
+        if video_mxc is None:
+            video_mxc = await process_video(self, video=url_str)
+        
+    else: 
+        # Fetch image_mxc
+        image_mxc = og.get('image_mxc', None)
+        if image_mxc is None:
+            image_mxc = await process_image(self, image=og.get('image', None), html_custom_headers=html_custom_headers, content_type=og.get('content_type', None))
+        # Check if only contains image
+        if check_all_none_except(og, ['image', 'image_mxc', 'content_type', 'image_width']):
+            image_solo = format_image(image_mxc, url_str, og.get('content_type', None), max_image_embed=0) # Full size image
+            if image_solo is not None:
+                return f"<blockquote>{image_solo}</blockquote>"
+            return None # Everything is empty
+        # Default message
     title = format_title(og.get('title', None), url_str, custom_styles=self.HTML_CUSTOM_STYLES_DICT['TITLE'], use_divtag_instead_of_htag=self.USE_DIVTAG_INSTEAD_OF_HTAG_FOR_TITLE)
     description = format_description(og.get('description'), custom_styles=self.HTML_CUSTOM_STYLES_DICT['DESCRIPTION'], indent_description=self.INDENT_DESCRIPTION, use_divtag_instead_of_ptag=self.USE_DIVTAG_INSTEAD_OF_PTAG_FOR_DESCRIPTION)
-    image = format_image(image_mxc, url_str, og.get('content_type', None), format_image_width(og.get('image_width', None), max_image_embed), custom_styles=self.HTML_CUSTOM_STYLES_DICT['IMAGE'])
-    message = "".join(filter(None, [title, description, image]))
+    video = None
+    image = None
+    if YOUTUBE_DL:
+        video = format_video(video_mxc, url_str)
+    else:
+        image = format_image(image_mxc, url_str, og.get('content_type', None), format_image_width(og.get('image_width', None), max_image_embed), custom_styles=self.HTML_CUSTOM_STYLES_DICT['IMAGE'])
+    message = "".join(filter(None, [title, description, video if YOUTUBE_DL else image]))
     if message:
         return f"<blockquote>{message}</blockquote>"
     return None

@@ -2,13 +2,14 @@ import ipaddress
 import re
 import socket
 import urllib.parse
+import os
+import subprocess
+from datetime import datetime as dt
+import hashlib
 from urllib.parse import urlparse
 
 IMAGE_TYPES = ["image/gif", "image/jpg", "image/jpeg", "image/png", "image/webp"]
-IMAGE_STYLE_TAG_VALUE = 'max-height: 60px;'
 
-TITLE_STYLE_TAG_VALUE = "font-size: medium; padding-bottom: 8px; line-height:1.1; margin-bottom: 5px;"
-DESCRIPTION_STYLE_TAG_VALUE = "font-size: small; font-style: oblique; line-height: 1; padding-bottom: 5px; margin-bottom: 5px; padding-top:1px; margin-top:2px;"
 def check_all_none_except(data, keys_to_except):
     for key, value in data.items():
         if key not in keys_to_except and value is not None:
@@ -65,6 +66,16 @@ def format_image(image_mxc, url_str: str='', content_type: str=None, max_image_e
         return f'<a href="{url_str}"><img style="{custom_styles}" src="{image_mxc}" alt="{content_type}" {width}/></a>'
     else:
         return f'<img style="{custom_styles}" src="{image_mxc}" alt="{content_type}" {width}/>'
+def format_video(video_mxc, url_str: str='', content_type: str=None):
+    if not video_mxc:
+        return None
+    if not content_type:
+        content_type = "Video"
+
+    if url_str:
+        return f'<a href="{url_str}"><video width="320" height="240" controls><source src="{video_mxc}" type="video/mp4"></video></a>'
+    else:
+        return f'<video width="320" height="240" controls><source src="{video_mxc}" type="video/mp4"></video>'
 
 def format_image_width(image_width, max_image_embed: int=300):
     if image_width is None:
@@ -110,6 +121,47 @@ async def matrix_get_image(self, image_url: str, html_custom_headers=None, mime_
         self.log.exception(f"[urlpreview] [utils] Error matrix_get_image client.upload_media: {str(err)}")
         return None
     return mxc
+async def process_video(self, video: str, html_custom_headers=None, content_type: str=None):
+    if not video:
+        return None
+    video_url = urlparse(video)
+    # URL is mxc
+    if video_url.scheme == 'mxc':
+        return video
+    # URL is not mxc
+    # yt-dlp puts out either mp4 or webm
+    if not content_type:
+        content_type = 'video/webm'
+    image_mxc = await matrix_get_youtube_video(
+        self,
+        video_url=video,
+        html_custom_headers=html_custom_headers,
+        mime_type=content_type,
+        filename=content_type.replace('/', '.').replace('jpeg', 'jpg')
+    )
+    return image_mxc
+async def matrix_get_youtube_video(self, video_url: str, html_custom_headers=None, mime_type: str="video/webm", filename: str=""):
+    if not filename:
+        h = hashlib.md5(bytes(dt.now()))
+        filename = str(dt.now() + h.hexdigest())
+    if not video_url:
+        return None
+    try:
+        result = subprocess.run(f'yt-dlp -p {self.YT_DLP_STORAGE_PATH} --no-part {video_url} -o "{filename}"')
+    except Exception as err:
+        self.log.exception(f"[urlpreview] [utils] Error matrix_get_youtube_video http.get: {str(err)}")
+        return None
+
+    og_video = None
+    with open(filename, 'rb') as h:
+        og_video = h.read()
+    try:
+        mxc = await self.client.upload_media(og_video, mime_type=mime_type, filename=filename)
+    except Exception as err:
+        self.log.exception(f"[urlpreview] [utils] Error matrix_get_youtube_video client.upload_media: {str(err)}")
+        return None
+    return mxc
+
 
 def url_check_is_in_range(ip, unsafe_url, ranges):
     for r in ranges:

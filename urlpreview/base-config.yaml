@@ -13,6 +13,7 @@ respond_instead_of_reply: False
 use_divtag_instead_of_htag_for_title: False
 use_divtag_instead_of_ptag_for_description: False
 indent_description: False
+yt_dlp_storage_path: '.'
 no_results_react: 💨
 url_blacklist:
   - ':\/\/matrix\.to\/'
